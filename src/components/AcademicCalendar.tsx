@@ -8,7 +8,7 @@ const events = [
   { title: '1. Dilim Dersleri', start: '29.09.2025', end: '18.11.2025' },
   { title: 'TAT1 (SÖZLÜ)', start: '20.11.2025', end: '21.11.2025' },
   { title: 'TAT1 (YAZILI)', start: '22.11.2025', end: '22.11.2025' },
-  { title: 'Mazeret Sınav Başvurusu', start: '22.11.2025', end: '24.11.2025' },
+  { title: 'Mazeret Sınav Başvurusu', start: '24.11.2025', end: '24.11.2025' },
   { title: 'Sınav Sonuçlarının Yayınlanması', start: '24.11.2025', end: '24.11.2025' },
   { title: 'TAT1 Sonucuna İtiraz', start: '24.11.2025', end: '27.11.2025' },
   { title: '2. Dilim Dersleri', start: '24.11.2025', end: '16.01.2026' },
@@ -17,7 +17,7 @@ const events = [
   { title: 'TAT2 (YAZILI)', start: '17.01.2026', end: '17.01.2026' },
   { title: 'Mazeret Sınav Başvurusu', start: '15.01.2026', end: '20.01.2026' },
   { title: 'Sınav Sonuçlarının Yayınlanması', start: '20.01.2026', end: '20.01.2026' },
-  { title: 'Ara Dönem Muafiyet Sınav Başvurusu', start: '20.01.2026', end: '23.01.2026' },
+  { title: 'Ara Dönem Muafiyet Sınavı Başvurusu', start: '20.01.2026', end: '23.01.2026' },
   { title: 'TAT2 Sonucuna İtiraz', start: '20.01.2026', end: '23.01.2026' },
   { title: 'Mazeret Sınavı', start: '23.01.2026', end: '23.01.2026' },
   { title: 'Ara Dönem Muafiyet Sınavı', start: '27.01.2026', end: '27.01.2026' },
@@ -33,7 +33,7 @@ const events = [
   { title: 'TAT4 (SÖZLÜ)', start: '18.06.2026', end: '19.06.2026' },
   { title: 'Mazeret Sınav Başvurusu', start: '18.06.2026', end: '23.06.2026' },
   { title: 'Sınav Sonuçlarının Yayınlanması', start: '24.06.2026', end: '24.06.2026' },
-  { title: 'TAT4 Sonucuna İtiraz', start: '24.06.2026', end: '29.06.2026' },
+  { title: 'TAT4 Sonucuna İtiraz', start: '24.06.2026', end: '26.06.2026' },
   { title: 'Mazeret Sınavı', start: '29.06.2026', end: '29.06.2026' },
 ]
 
@@ -58,7 +58,7 @@ export default function AcademicCalendar() {
           <tbody>
             {events.map((e, i) => {
               const isPast = parse(e.end).getTime() < today.getTime()
-              const rowCls = `border-t border-gray-700 hover:bg-gray-700/50 ${isPast ? 'opacity-70' : ''}`
+              const rowCls = `border-t border-gray-700 hover:bg-gray-700/50 transition-all duration-300 ${isPast ? 'opacity-50 blur-[1.5px] line-through hover:blur-none hover:opacity-100 hover:no-underline' : ''}`
               return (
                 <tr key={i} className={rowCls}>
                   <td className="px-4 py-2">{e.title}</td>
