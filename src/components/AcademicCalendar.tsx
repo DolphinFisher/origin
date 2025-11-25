@@ -1,0 +1,75 @@
+import React from 'react'
+
+const events = [
+  { title: 'İngilizce Yeterlilik Sınavı (YAZILI)', start: '9.09.2025', end: '9.09.2025' },
+  { title: 'İngilizce Yeterlilik Sınavı (SÖZLÜ)', start: '10.09.2025', end: '11.09.2025' },
+  { title: 'Sınav Sonuçlarının Yayınlanması', start: '12.09.2025', end: '12.09.2025' },
+  { title: 'Sınav Sonucuna İtiraz', start: '12.09.2025', end: '17.09.2025' },
+  { title: '1. Dilim Dersleri', start: '29.09.2025', end: '18.11.2025' },
+  { title: 'TAT1 (SÖZLÜ)', start: '20.11.2025', end: '21.11.2025' },
+  { title: 'TAT1 (YAZILI)', start: '22.11.2025', end: '22.11.2025' },
+  { title: 'Mazeret Sınav Başvurusu', start: '22.11.2025', end: '24.11.2025' },
+  { title: 'Sınav Sonuçlarının Yayınlanması', start: '24.11.2025', end: '24.11.2025' },
+  { title: 'TAT1 Sonucuna İtiraz', start: '24.11.2025', end: '27.11.2025' },
+  { title: '2. Dilim Dersleri', start: '24.11.2025', end: '16.01.2026' },
+  { title: 'Mazeret Sınavı', start: '27.11.2025', end: '27.11.2025' },
+  { title: 'TAT2 (SÖZLÜ)', start: '15.01.2026', end: '16.01.2026' },
+  { title: 'TAT2 (YAZILI)', start: '17.01.2026', end: '17.01.2026' },
+  { title: 'Mazeret Sınav Başvurusu', start: '15.01.2026', end: '20.01.2026' },
+  { title: 'Sınav Sonuçlarının Yayınlanması', start: '20.01.2026', end: '20.01.2026' },
+  { title: 'Ara Dönem Muafiyet Sınav Başvurusu', start: '20.01.2026', end: '23.01.2026' },
+  { title: 'TAT2 Sonucuna İtiraz', start: '20.01.2026', end: '23.01.2026' },
+  { title: 'Mazeret Sınavı', start: '23.01.2026', end: '23.01.2026' },
+  { title: 'Ara Dönem Muafiyet Sınavı', start: '27.01.2026', end: '27.01.2026' },
+  { title: '3. Dilim Dersleri', start: '16.02.2026', end: '10.04.2026' },
+  { title: 'TAT3 (YAZILI)', start: '11.04.2026', end: '11.04.2026' },
+  { title: 'TAT3 (SÖZLÜ)', start: '13.04.2026', end: '14.04.2026' },
+  { title: 'Mazeret Sınav Başvurusu', start: '11.04.2026', end: '16.04.2026' },
+  { title: 'Sınav Sonuçlarının Yayınlanması', start: '16.04.2026', end: '16.04.2026' },
+  { title: 'Mazeret Sınavı', start: '17.04.2026', end: '17.04.2026' },
+  { title: 'TAT3 Sonucuna İtiraz', start: '16.04.2026', end: '21.04.2026' },
+  { title: '4. Dilim Dersleri', start: '20.04.2026', end: '17.06.2026' },
+  { title: 'TAT4 (YAZILI)', start: '22.06.2026', end: '22.06.2026' },
+  { title: 'TAT4 (SÖZLÜ)', start: '18.06.2026', end: '19.06.2026' },
+  { title: 'Mazeret Sınav Başvurusu', start: '18.06.2026', end: '23.06.2026' },
+  { title: 'Sınav Sonuçlarının Yayınlanması', start: '24.06.2026', end: '24.06.2026' },
+  { title: 'TAT4 Sonucuna İtiraz', start: '24.06.2026', end: '29.06.2026' },
+  { title: 'Mazeret Sınavı', start: '29.06.2026', end: '29.06.2026' },
+]
+
+export default function AcademicCalendar() {
+  const today = new Date()
+  const parse = (s: string) => {
+    const [d, m, y] = s.split('.').map((x) => parseInt(x, 10))
+    return new Date(y, (m || 1) - 1, d || 1)
+  }
+  return (
+    <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-6">
+      <h2 className="text-gray-100 mb-4">Akademik Takvim (2025-2026)</h2>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-gray-200">
+          <thead>
+            <tr className="bg-gray-700">
+              <th className="px-4 py-2">Açıklama</th>
+              <th className="px-4 py-2">Başlangıç</th>
+              <th className="px-4 py-2">Bitiş</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((e, i) => {
+              const isPast = parse(e.end).getTime() < today.getTime()
+              const rowCls = `border-t border-gray-700 hover:bg-gray-700/50 ${isPast ? 'opacity-70' : ''}`
+              return (
+                <tr key={i} className={rowCls}>
+                  <td className="px-4 py-2">{e.title}</td>
+                  <td className="px-4 py-2">{e.start}</td>
+                  <td className="px-4 py-2">{e.end}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Announcement {
+  id         String   @id @default(cuid())
+  title      String
+  content    String
+  date       DateTime @default(now())
+  priority   String   @default("normal")
+  source     String?
+  imagesJson String?
+  filesJson  String?
+}
+
+model Assignment {
+  id         String   @id @default(cuid())
+  title      String
+  description String
+  dueDate    DateTime
+  subject    String
+  completed  Boolean  @default(false)
+  imagesJson String?
+  filesJson  String?
+}
