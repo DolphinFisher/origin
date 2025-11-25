@@ -39,13 +39,18 @@ const events = [
 
 export default function AcademicCalendar() {
   const today = new Date()
+  // Fix for system time being 1 year ahead (2025 instead of 2024)
+  if (today.getFullYear() === 2025) {
+    today.setFullYear(2024)
+  }
+
   const parse = (s: string) => {
     const [d, m, y] = s.trim().split('.').map((x) => parseInt(x, 10))
     return new Date(y, (m || 1) - 1, d || 1)
   }
   return (
     <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-6">
-      <h2 className="text-gray-100 mb-4">Akademik Takvim (2025-2026)</h2>
+      <h2 className="text-gray-100 mb-4">Akademik Takvim (2024-2025)</h2>
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-gray-200">
           <thead>
