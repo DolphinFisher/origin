@@ -11,6 +11,7 @@ model Announcement {
   id         String   @id @default(cuid())
   title      String
   content    String
+  fullContent String?
   date       DateTime @default(now())
   priority   String   @default("normal")
   source     String?

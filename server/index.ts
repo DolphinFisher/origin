@@ -213,6 +213,72 @@ function parseTrDate(input: string | null | undefined): Date {
   return new Date()
 }
 
+async function scrapeExternalPost(url: string) {
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    })
+    if (!resp.ok) return null
+    const html = await resp.text()
+    const $ = cheerio.load(html)
+    $('script, style, link').remove()
+    const title = $('h1.entry-title, #Content h1, .post-title, article h1').first().text().trim()
+    const dateText = $('.post-date, time.entry-date, time').first().text().trim() || $('time').attr('datetime') || null
+    let contentEl = $('#Content .the_content_wrapper').first()
+    if (!contentEl || !contentEl.html()) {
+      contentEl = $('#Content .entry-content, #Content .post-content, #Content .entry, article .entry-content, article .entry').first()
+    }
+    if (!contentEl || !contentEl.html()) {
+      contentEl = $('#Content').first()
+    }
+    contentEl.find('.post-related, .post-nav, .share_box, .author-box, .wp-block-image figcaption').remove()
+    contentEl.find('.section.section-post-intro-share, .section.section-post-related, .section.section-post-footer, .section.section-post-about, .post-pager, .share-simple-wrapper, .button-love, .section-related-adjustment, #comments, .section-comments, .section-related-ul, .column.post-related, .related, [class*="related"], .recent-posts').remove()
+    contentEl.find('a').attr('target', 'blank').attr('rel', 'noopener noreferrer')
+    
+    contentEl.find('.wp-block-file').each((_, el) => {
+      const $el = $(el)
+      const obj = $el.find('object').first()
+      if (obj && obj.length) {
+        obj.removeAttr('data-wp-bind--hidden').removeAttr('hidden')
+        const dataAttr = obj.attr('data') || obj.attr('src')
+        if (dataAttr) {
+          const abs = new URL(dataAttr, url).href
+          const proxied = `/api/external/proxy?url=${encodeURIComponent(abs)}`
+          obj.attr('data', proxied)
+        }
+        const style = (obj.attr('style') || '').toLowerCase()
+        if (!style.includes('height')) obj.attr('style', 'width:100%;height:600px')
+      } else {
+        const linkEl = $el.find('a[href]').first()
+        const href = linkEl.attr('href') || ''
+        if (href) {
+          const fileAbs = new URL(href, url).href
+          if (/\.xlsx($|\?)/i.test(fileAbs) || /\.xls($|\?)/i.test(fileAbs) || /\.csv($|\?)/i.test(fileAbs)) {
+            const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(`/api/external/proxy?url=${encodeURIComponent(fileAbs)}`)
+            $el.prepend(`<iframe src="${officeSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+          }
+        }
+      }
+    })
+    
+    contentEl.find('img').each((_, el) => {
+      const src = $(el).attr('src')
+      if (src) {
+        const abs = new URL(src, url).href
+        $(el).attr('src', abs)
+      }
+    })
+    
+    const contentHtml = contentEl.html() || ''
+    return { title, dateText, contentHtml }
+  } catch (e) {
+    return null
+  }
+}
+
 async function syncExternalOnce() {
   try {
     const listResp = await fetch('https://ydyo.ankaramedipol.edu.tr/blog/category/duyurular/', {
@@ -237,18 +303,43 @@ async function syncExternalOnce() {
     })
     for (const it of items) {
       const existing = await prisma.announcement.findFirst({ where: { source: it.link } })
-      if (existing) continue
-      await prisma.announcement.create({
-        data: {
-          title: it.title,
-          content: it.excerpt || '',
-          priority: 'normal',
-          date: parseTrDate(it.dateText),
-          source: it.link,
-          imagesJson: it.img ? JSON.stringify([new URL(it.img, 'https://ydyo.ankaramedipol.edu.tr/').href]) : null,
-          filesJson: null,
-        },
-      })
+      
+      let fullContent = null
+      if (existing && existing.fullContent) {
+        continue
+      }
+      
+      // If new item or existing but missing content, try to scrape
+      // We only scrape if it's new OR if we want to backfill. 
+      // To avoid spamming, let's only scrape if it's new or if we specifically want to fix missing content.
+      // For now, let's scrape if new.
+      
+      if (!existing) {
+        const scraped = await scrapeExternalPost(it.link)
+        if (scraped) fullContent = scraped.contentHtml
+        
+        await prisma.announcement.create({
+          data: {
+            title: it.title,
+            content: it.excerpt || '',
+            fullContent: fullContent,
+            priority: 'normal',
+            date: parseTrDate(it.dateText),
+            source: it.link,
+            imagesJson: it.img ? JSON.stringify([new URL(it.img, 'https://ydyo.ankaramedipol.edu.tr/').href]) : null,
+            filesJson: null,
+          },
+        })
+      } else if (!existing.fullContent) {
+         // Backfill content for existing items
+         const scraped = await scrapeExternalPost(it.link)
+         if (scraped && scraped.contentHtml) {
+           await prisma.announcement.update({
+             where: { id: existing.id },
+             data: { fullContent: scraped.contentHtml }
+           })
+         }
+      }
     }
     lastSyncAt = Date.now()
   } catch {}
@@ -271,64 +362,27 @@ app.get('/api/external/post', async (req, res) => {
     if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname.includes('ankaramedipol.edu.tr')) {
       return res.status(400).json({ error: 'domain not allowed' })
     }
-    const resp = await fetch(q, {
-      headers: {
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-    })
-    if (!resp.ok) {
-      return res.json({ title: '', dateText: null, contentHtml: '' })
+
+    // Check DB first
+    const existing = await prisma.announcement.findFirst({ where: { source: q } })
+    if (existing && existing.fullContent) {
+      return res.json({ title: existing.title, dateText: null, contentHtml: existing.fullContent })
     }
-    const html = await resp.text()
-    const $ = cheerio.load(html)
-    $('script, style, link').remove()
-    const title = $('h1.entry-title, #Content h1, .post-title, article h1').first().text().trim()
-    const dateText = $('.post-date, time.entry-date, time').first().text().trim() || $('time').attr('datetime') || null
-    let contentEl = $('#Content .the_content_wrapper').first()
-    if (!contentEl || !contentEl.html()) {
-      contentEl = $('#Content .entry-content, #Content .post-content, #Content .entry, article .entry-content, article .entry').first()
-    }
-    if (!contentEl || !contentEl.html()) {
-      contentEl = $('#Content').first()
-    }
-    contentEl.find('.post-related, .post-nav, .share_box, .author-box, .wp-block-image figcaption').remove()
-    contentEl.find('.section.section-post-intro-share, .section.section-post-related, .section.section-post-footer, .section.section-post-about, .post-pager, .share-simple-wrapper, .button-love, .section-related-adjustment, #comments, .section-comments, .section-related-ul, .column.post-related, .related, [class*="related"], .recent-posts').remove()
-    contentEl.find('a').attr('target', 'blank').attr('rel', 'noopener noreferrer')
-    contentEl.find('.wp-block-file').each((_, el) => {
-      const $el = $(el)
-      const obj = $el.find('object').first()
-      if (obj && obj.length) {
-        obj.removeAttr('data-wp-bind--hidden').removeAttr('hidden')
-        const dataAttr = obj.attr('data') || obj.attr('src')
-        if (dataAttr) {
-          const abs = new URL(dataAttr, q).href
-          const proxied = `/api/external/proxy?url=${encodeURIComponent(abs)}`
-          obj.attr('data', proxied)
-        }
-        const style = (obj.attr('style') || '').toLowerCase()
-        if (!style.includes('height')) obj.attr('style', 'width:100%;height:600px')
-      } else {
-        const linkEl = $el.find('a[href]').first()
-        const href = linkEl.attr('href') || ''
-        if (href) {
-          const fileAbs = new URL(href, q).href
-          if (/\.xlsx($|\?)/i.test(fileAbs) || /\.xls($|\?)/i.test(fileAbs) || /\.csv($|\?)/i.test(fileAbs)) {
-            const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(`/api/external/proxy?url=${encodeURIComponent(fileAbs)}`)
-            $el.prepend(`<iframe src="${officeSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
-          }
-        }
+
+    // Fallback to scrape
+    const scraped = await scrapeExternalPost(q)
+    if (scraped) {
+      // If we found it, update the DB if we have a record
+      if (existing && !existing.fullContent) {
+        await prisma.announcement.update({
+          where: { id: existing.id },
+          data: { fullContent: scraped.contentHtml }
+        })
       }
-    })
-    contentEl.find('img').each((_, el) => {
-      const src = $(el).attr('src')
-      if (src) {
-        const abs = new URL(src, q).href
-        $(el).attr('src', abs)
-      }
-    })
-    const contentHtml = contentEl.html() || ''
-    res.json({ title, dateText, contentHtml })
+      res.json(scraped)
+    } else {
+      res.json({ title: '', dateText: null, contentHtml: '' })
+    }
   } catch {
     res.json({ title: '', dateText: null, contentHtml: '' })
   }

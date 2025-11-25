@@ -1,0 +1,27 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[dev]
+  command = "npm run dev"
+  targetPort = 5173
+
+[[redirects]]
+  from = "/api/external/post"
+  to = "/.netlify/functions/external-post"
+  status = 200
+
+[[redirects]]
+  from = "/api/external/announcements"
+  to = "/.netlify/functions/external-announcements"
+  status = 200
+
+[[redirects]]
+  from = "/api/external/proxy"
+  to = "/.netlify/functions/external-proxy"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
