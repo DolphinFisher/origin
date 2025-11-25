@@ -23,12 +23,30 @@ export function MainApp({ isAdmin, onLogout }: MainAppProps) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false
+    const load = async () => {
       const [a, ext, s] = await Promise.all([getAnnouncements(), getExternalAnnouncements(), getAssignments()])
       const merged = [...ext, ...a]
-      setAnnouncements(merged.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) })))
-      setAssignments(s.map(x => ({ ...x, dueDate: x.dueDate instanceof Date ? x.dueDate : (x.dueDate ? new Date(x.dueDate) : new Date()) })))
-    })()
+      const normalized = merged.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) }))
+      const sorted = normalized.sort((p, q) => {
+        const pt = p.date instanceof Date ? p.date.getTime() : new Date(p.date as any).getTime()
+        const qt = q.date instanceof Date ? q.date.getTime() : new Date(q.date as any).getTime()
+        return qt - pt
+      })
+      if (!cancelled) {
+        setAnnouncements(sorted)
+        setAssignments(s.map(x => ({ ...x, dueDate: x.dueDate instanceof Date ? x.dueDate : (x.dueDate ? new Date(x.dueDate) : new Date()) })))
+      }
+    }
+    load()
+    const id = setInterval(load, 60 * 1000)
+    const onFocus = () => load()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [])
 
   const handleAddAnnouncement = async (announcement: Omit<Announcement, 'id'>) => {

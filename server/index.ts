@@ -13,6 +13,7 @@ app.use(express.json({ limit: '5mb' }))
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret'
+let lastSyncAt = 0
 
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const auth = req.headers.authorization
@@ -39,6 +40,12 @@ app.post('/api/auth/login', (req, res) => {
 
 // Announcements
 app.get('/api/announcements', async (_req, res) => {
+  try {
+    if (Date.now() - lastSyncAt > 5 * 60 * 1000) {
+      await syncExternalOnce().catch(() => {})
+      lastSyncAt = Date.now()
+    }
+  } catch {}
   const data = await prisma.announcement.findMany({ orderBy: { date: 'desc' } })
   const mapped = data.map(a => ({
     id: a.id,
@@ -243,6 +250,7 @@ async function syncExternalOnce() {
         },
       })
     }
+    lastSyncAt = Date.now()
   } catch {}
 }
 
