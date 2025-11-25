@@ -60,7 +60,7 @@ export default function AcademicCalendar() {
               const endDate = parse(e.end)
               endDate.setHours(23, 59, 59, 999)
               const isPast = endDate.getTime() < today.getTime()
-              const rowCls = `border-t border-gray-700 hover:bg-gray-700/50 transition-all duration-300 ${isPast ? 'opacity-60 blur-[0.5px] line-through hover:blur-none hover:opacity-100 hover:no-underline' : ''}`
+              const rowCls = `border-t border-gray-700 hover:bg-gray-700/50 transition-all duration-300 ${isPast ? 'opacity-50 blur-[1px] line-through decoration-current hover:blur-none hover:opacity-100 hover:no-underline' : ''}`
               return (
                 <tr key={i} className={rowCls}>
                   <td className="px-4 py-2">{e.title}</td>
