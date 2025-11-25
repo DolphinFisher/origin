@@ -40,7 +40,7 @@ const events = [
 export default function AcademicCalendar() {
   const today = new Date()
   const parse = (s: string) => {
-    const [d, m, y] = s.split('.').map((x) => parseInt(x, 10))
+    const [d, m, y] = s.trim().split('.').map((x) => parseInt(x, 10))
     return new Date(y, (m || 1) - 1, d || 1)
   }
   return (
@@ -57,8 +57,10 @@ export default function AcademicCalendar() {
           </thead>
           <tbody>
             {events.map((e, i) => {
-              const isPast = parse(e.end).getTime() < today.getTime()
-              const rowCls = `border-t border-gray-700 hover:bg-gray-700/50 transition-all duration-300 ${isPast ? 'opacity-50 blur-[1.5px] line-through hover:blur-none hover:opacity-100 hover:no-underline' : ''}`
+              const endDate = parse(e.end)
+              endDate.setHours(23, 59, 59, 999)
+              const isPast = endDate.getTime() < today.getTime()
+              const rowCls = `border-t border-gray-700 hover:bg-gray-700/50 transition-all duration-300 ${isPast ? 'opacity-60 blur-[0.5px] line-through hover:blur-none hover:opacity-100 hover:no-underline' : ''}`
               return (
                 <tr key={i} className={rowCls}>
                   <td className="px-4 py-2">{e.title}</td>
