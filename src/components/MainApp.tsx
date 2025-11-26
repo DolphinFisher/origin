@@ -51,8 +51,19 @@ export function MainApp({ isAdmin, onLogout }: MainAppProps) {
         const ext = await getExternalAnnouncements()
         if (cancelled) return
 
-        const merged = [...ext, ...normalizedInternal]
-        const normalizedAll = merged.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) }))
+        const merged = [...normalizedInternal, ...ext]
+        // De-duplicate based on source (link) or title if source is missing
+        const uniqueMap = new Map()
+        for (const item of merged) {
+            const rawKey = item.source || item.title || ''
+            const key = rawKey.replace(/\/$/, '') // Normalize trailing slash
+            if (!uniqueMap.has(key)) {
+                uniqueMap.set(key, item)
+            }
+        }
+        const uniqueList = Array.from(uniqueMap.values())
+        
+        const normalizedAll = uniqueList.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) }))
         const sortedAll = normalizedAll.sort((p, q) => q.date.getTime() - p.date.getTime())
         
         setAnnouncements(sortedAll)
@@ -69,8 +80,20 @@ export function MainApp({ isAdmin, onLogout }: MainAppProps) {
         // Silent update
         const [a, ext, s] = await Promise.all([getAnnouncements(), getExternalAnnouncements(), getAssignments()])
         if (cancelled) return
-        const merged = [...ext, ...a]
-        const normalized = merged.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) }))
+        const merged = [...a, ...ext]
+        
+        // De-duplicate
+        const uniqueMap = new Map()
+        for (const item of merged) {
+            const rawKey = item.source || item.title || ''
+            const key = rawKey.replace(/\/$/, '')
+            if (!uniqueMap.has(key)) {
+                uniqueMap.set(key, item)
+            }
+        }
+        const uniqueList = Array.from(uniqueMap.values())
+
+        const normalized = uniqueList.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) }))
         const sorted = normalized.sort((p, q) => q.date.getTime() - p.date.getTime())
         setAnnouncements(sorted)
         setAssignments(s.map(x => ({ ...x, dueDate: x.dueDate instanceof Date ? x.dueDate : (x.dueDate ? new Date(x.dueDate) : new Date()) })))

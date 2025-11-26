@@ -14,6 +14,7 @@ app.use(express.json({ limit: '5mb' }))
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret'
 let lastSyncAt = 0
+let isSyncing = false
 
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const auth = req.headers.authorization
@@ -41,9 +42,9 @@ app.post('/api/auth/login', (req, res) => {
 // Announcements
 app.get('/api/announcements', async (_req, res) => {
   try {
-    if (Date.now() - lastSyncAt > 5 * 60 * 1000) {
-      await syncExternalOnce().catch(() => {})
-      lastSyncAt = Date.now()
+    if (!isSyncing && Date.now() - lastSyncAt > 5 * 60 * 1000) {
+      isSyncing = true
+      syncExternalOnce().finally(() => { isSyncing = false }).catch(() => {})
     }
   } catch {}
   const data = await prisma.announcement.findMany({ orderBy: { date: 'desc' } })
@@ -172,7 +173,7 @@ app.get('/api/external/announcements', async (_req, res) => {
       const img = $(el).find('img').first().attr('src') || null
       const dateText = $(el).find('.post-date, time').first().text().trim() || $(el).find('time').attr('datetime') || null
       const excerpt = $(el).find('.post-content, .entry').first().text().trim() || ''
-      if (title) items.push({ title, link, img, dateText, excerpt })
+      if (title) items.push({ title, link, source: link, img, dateText, excerpt })
     })
     res.json(items)
   } catch (e) {
@@ -301,45 +302,60 @@ async function syncExternalOnce() {
       const excerpt = $(el).find('.post-content, .entry').first().text().trim() || ''
       if (title && link) items.push({ title, link, img, dateText, excerpt })
     })
-    for (const it of items) {
-      const existing = await prisma.announcement.findFirst({ where: { source: it.link } })
-      
-      let fullContent = null
-      if (existing && existing.fullContent) {
-        continue
-      }
-      
-      // If new item or existing but missing content, try to scrape
-      // We only scrape if it's new OR if we want to backfill. 
-      // To avoid spamming, let's only scrape if it's new or if we specifically want to fix missing content.
-      // For now, let's scrape if new.
-      
-      if (!existing) {
-        const scraped = await scrapeExternalPost(it.link)
-        if (scraped) fullContent = scraped.contentHtml
-        
-        await prisma.announcement.create({
-          data: {
-            title: it.title,
-            content: it.excerpt || '',
-            fullContent: fullContent,
-            priority: 'normal',
-            date: parseTrDate(it.dateText),
-            source: it.link,
-            imagesJson: it.img ? JSON.stringify([new URL(it.img, 'https://ydyo.ankaramedipol.edu.tr/').href]) : null,
-            filesJson: null,
-          },
-        })
-      } else if (!existing.fullContent) {
-         // Backfill content for existing items
-         const scraped = await scrapeExternalPost(it.link)
-         if (scraped && scraped.contentHtml) {
-           await prisma.announcement.update({
-             where: { id: existing.id },
-             data: { fullContent: scraped.contentHtml }
-           })
-         }
-      }
+
+    // Process in chunks to avoid overwhelming the server but still faster than sequential
+    const chunks = []
+    const CHUNK_SIZE = 5
+    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+        chunks.push(items.slice(i, i + CHUNK_SIZE))
+    }
+
+    for (const chunk of chunks) {
+      await Promise.all(chunk.map(async (it) => {
+        try {
+          const existing = await prisma.announcement.findFirst({ where: { source: it.link } })
+          
+          if (existing && (existing as any).fullContent) {
+            return
+          }
+          
+          if (!existing) {
+            // Create immediately with basic info if not exists
+            const created = await prisma.announcement.create({
+              data: {
+                title: it.title,
+                content: it.excerpt || '',
+                // fullContent will be filled below
+                priority: 'normal',
+                date: parseTrDate(it.dateText),
+                source: it.link,
+                imagesJson: it.img ? JSON.stringify([new URL(it.img, 'https://ydyo.ankaramedipol.edu.tr/').href]) : null,
+                filesJson: null,
+              },
+            })
+
+            // Then scrape content
+            const scraped = await scrapeExternalPost(it.link)
+            if (scraped && scraped.contentHtml) {
+               await prisma.announcement.update({
+                 where: { id: created.id },
+                 data: { content: scraped.contentHtml }
+               })
+            }
+          } else if (!(existing as any).fullContent) {
+             // Backfill content for existing items
+             const scraped = await scrapeExternalPost(it.link)
+             if (scraped && scraped.contentHtml) {
+               await prisma.announcement.update({
+                 where: { id: existing.id },
+                 data: { content: scraped.contentHtml }
+               })
+             }
+          }
+        } catch (e) {
+          console.error(`Error processing ${it.link}`, e)
+        }
+      }))
     }
     lastSyncAt = Date.now()
   } catch {}
@@ -365,18 +381,18 @@ app.get('/api/external/post', async (req, res) => {
 
     // Check DB first
     const existing = await prisma.announcement.findFirst({ where: { source: q } })
-    if (existing && existing.fullContent) {
-      return res.json({ title: existing.title, dateText: null, contentHtml: existing.fullContent })
+    if (existing && (existing as any).fullContent) {
+      return res.json({ title: existing.title, dateText: null, contentHtml: existing.content })
     }
 
     // Fallback to scrape
     const scraped = await scrapeExternalPost(q)
     if (scraped) {
       // If we found it, update the DB if we have a record
-      if (existing && !existing.fullContent) {
+      if (existing && !(existing as any).fullContent) {
         await prisma.announcement.update({
           where: { id: existing.id },
-          data: { fullContent: scraped.contentHtml }
+          data: { content: scraped.contentHtml }
         })
       }
       res.json(scraped)
