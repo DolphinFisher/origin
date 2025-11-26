@@ -247,8 +247,8 @@ async function scrapeExternalPost(url: string) {
         const dataAttr = obj.attr('data') || obj.attr('src')
         if (dataAttr) {
           const abs = new URL(dataAttr, url).href
-          const proxied = `/api/external/proxy?url=${encodeURIComponent(abs)}`
-          obj.attr('data', proxied)
+          // Use direct URL instead of proxy to avoid relative path issues and allow Office Viewer access
+          obj.attr('data', abs)
         }
         const style = (obj.attr('style') || '').toLowerCase()
         if (!style.includes('height')) obj.attr('style', 'width:100%;height:600px')
@@ -258,7 +258,8 @@ async function scrapeExternalPost(url: string) {
         if (href) {
           const fileAbs = new URL(href, url).href
           if (/\.xlsx($|\?)/i.test(fileAbs) || /\.xls($|\?)/i.test(fileAbs) || /\.csv($|\?)/i.test(fileAbs)) {
-            const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(`/api/external/proxy?url=${encodeURIComponent(fileAbs)}`)
+            // Office Viewer requires a public absolute URL. Do not proxy.
+            const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(fileAbs)
             $el.prepend(`<iframe src="${officeSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
           }
         }
@@ -315,7 +316,8 @@ async function syncExternalOnce() {
         try {
           const existing = await prisma.announcement.findFirst({ where: { source: it.link } })
           
-          if (existing && (existing as any).fullContent) {
+          // Skip if we have full content and it doesn't use the old proxy links
+          if (existing && existing.fullContent && !existing.fullContent.includes('/api/external/proxy')) {
             return
           }
           
@@ -325,7 +327,6 @@ async function syncExternalOnce() {
               data: {
                 title: it.title,
                 content: it.excerpt || '',
-                // fullContent will be filled below
                 priority: 'normal',
                 date: parseTrDate(it.dateText),
                 source: it.link,
@@ -339,16 +340,16 @@ async function syncExternalOnce() {
             if (scraped && scraped.contentHtml) {
                await prisma.announcement.update({
                  where: { id: created.id },
-                 data: { content: scraped.contentHtml }
+                 data: { content: scraped.contentHtml, fullContent: scraped.contentHtml }
                })
             }
-          } else if (!(existing as any).fullContent) {
-             // Backfill content for existing items
+          } else {
+             // Backfill or fix content for existing items
              const scraped = await scrapeExternalPost(it.link)
              if (scraped && scraped.contentHtml) {
                await prisma.announcement.update({
-                 where: { id: existing.id },
-                 data: { content: scraped.contentHtml }
+                 where: { id: existing!.id },
+                 data: { content: scraped.contentHtml, fullContent: scraped.contentHtml }
                })
              }
           }
