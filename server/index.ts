@@ -313,7 +313,15 @@ async function syncExternalOnce() {
       // Clean up excerpt: remove HTML tags and entities if any
       let excerptRaw = $(el).find('.post-content, .entry').first().text().trim() || ''
       // If the text actually contains literal tags like <p>, strip them
-      excerptRaw = excerptRaw.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
+      // Also decode common entities that might appear as literals
+      excerptRaw = excerptRaw
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
       const excerpt = excerptRaw
       if (title && link) items.push({ title, link, img, dateText, excerpt })
     })
