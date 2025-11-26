@@ -310,7 +310,11 @@ async function syncExternalOnce() {
       const link = $(el).find('.post-title a, h2.entry-title a, h2 a').first().attr('href') || ''
       const img = $(el).find('img').first().attr('src') || null
       const dateText = $(el).find('.post-date, time').first().text().trim() || $(el).find('time').attr('datetime') || null
-      const excerpt = $(el).find('.post-content, .entry').first().text().trim() || ''
+      // Clean up excerpt: remove HTML tags and entities if any
+      let excerptRaw = $(el).find('.post-content, .entry').first().text().trim() || ''
+      // If the text actually contains literal tags like <p>, strip them
+      excerptRaw = excerptRaw.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
+      const excerpt = excerptRaw
       if (title && link) items.push({ title, link, img, dateText, excerpt })
     })
 
@@ -346,6 +350,14 @@ async function syncExternalOnce() {
             console.log(`[Sync] Force updating ${it.link} due to embed method mismatch`)
           }
 
+          // Repair content (excerpt) if needed
+          if (existing && existing.content !== it.excerpt && it.excerpt) {
+             await prisma.announcement.update({
+                 where: { id: existing.id },
+                 data: { content: it.excerpt }
+             })
+          }
+
           if (existing && existing.fullContent && !needsUpdate) {
             return
           }
@@ -369,16 +381,16 @@ async function syncExternalOnce() {
             if (scraped && scraped.contentHtml) {
                await prisma.announcement.update({
                  where: { id: created.id },
-                 data: { content: scraped.contentHtml, fullContent: scraped.contentHtml }
+                 data: { fullContent: scraped.contentHtml }
                })
             }
           } else {
-             // Backfill or fix content for existing items
+             // Backfill or fix fullContent for existing items
              const scraped = await scrapeExternalPost(it.link)
              if (scraped && scraped.contentHtml) {
                await prisma.announcement.update({
                  where: { id: existing!.id },
-                 data: { content: scraped.contentHtml, fullContent: scraped.contentHtml }
+                 data: { fullContent: scraped.contentHtml }
                })
              }
           }
@@ -411,18 +423,18 @@ app.get('/api/external/post', async (req, res) => {
 
     // Check DB first
     const existing = await prisma.announcement.findFirst({ where: { source: q } })
-    if (existing && (existing as any).fullContent) {
-      return res.json({ title: existing.title, dateText: null, contentHtml: existing.content })
+    if (existing && existing.fullContent) {
+      return res.json({ title: existing.title, dateText: null, contentHtml: existing.fullContent })
     }
 
     // Fallback to scrape
     const scraped = await scrapeExternalPost(q)
     if (scraped) {
       // If we found it, update the DB if we have a record
-      if (existing && !(existing as any).fullContent) {
+      if (existing && !existing.fullContent) {
         await prisma.announcement.update({
           where: { id: existing.id },
-          data: { content: scraped.contentHtml }
+          data: { fullContent: scraped.contentHtml }
         })
       }
       res.json(scraped)
