@@ -7,10 +7,9 @@ interface AnnouncementsListProps {
   announcements: Announcement[];
   onDelete: (id: string) => void;
   isAdmin: boolean;
-  loading?: boolean;
 }
 
-export function AnnouncementsList({ announcements, onDelete, isAdmin, loading }: AnnouncementsListProps) {
+export function AnnouncementsList({ announcements, onDelete, isAdmin }: AnnouncementsListProps) {
   const [preview, setPreview] = useState<string | null>(null)
   const [postDetail, setPostDetail] = useState<{ title: string; dateText: string | null; contentHtml: string } | null>(null)
   const [postLoading, setPostLoading] = useState(false)
@@ -74,21 +73,6 @@ export function AnnouncementsList({ announcements, onDelete, isAdmin, loading }:
     }
   };
 
-  if (loading && announcements.length === 0) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-6 animate-pulse">
-            <div className="h-6 bg-gray-700 rounded w-3/4 mb-4"></div>
-            <div className="h-4 bg-gray-700 rounded w-full mb-2"></div>
-            <div className="h-4 bg-gray-700 rounded w-5/6 mb-2"></div>
-            <div className="h-4 bg-gray-700 rounded w-1/2"></div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   if (announcements.length === 0) {
     return (
       <div className="bg-gray-800 rounded-lg shadow-sm p-12 text-center border border-gray-700">
@@ -102,15 +86,6 @@ export function AnnouncementsList({ announcements, onDelete, isAdmin, loading }:
   const visible = announcements.slice(start, start + pageSize)
   const goPrev = () => setPage((p) => Math.max(1, p - 1))
   const goNext = () => setPage((p) => Math.min(totalPages, p + 1))
-
-  const stripHtml = (html: string) => {
-    return html
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/<[^>]*>/g, '')
-  }
 
   return (
     <div className="space-y-4">
@@ -136,7 +111,7 @@ export function AnnouncementsList({ announcements, onDelete, isAdmin, loading }:
                 <a href={announcement.source} className="text-gray-100 font-semibold hover:underline" onClick={(e) => { e.preventDefault(); openExternalPost(announcement) }}>
                   {announcement.title}
                 </a>
-                <p className="text-gray-300 mt-2 line-clamp-3">{stripHtml(announcement.content)}</p>
+                <p className="text-gray-300 mt-2 line-clamp-3">{announcement.content}</p>
                 <div className="mt-3">
                   <a href={announcement.source} className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300" onClick={(e) => { e.preventDefault(); openExternalPost(announcement) }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h6m0 0v6m0-6L10 16M7 7h3m-3 0v3m0-3l7 7" /></svg>
@@ -150,7 +125,7 @@ export function AnnouncementsList({ announcements, onDelete, isAdmin, loading }:
               <div className="mt-1">{getPriorityIcon(announcement.priority)}</div>
               <div className="flex-1">
                 <h3 className="text-gray-100 mb-2">{announcement.title}</h3>
-                <p className="text-gray-300 mb-3 whitespace-pre-wrap">{stripHtml(announcement.content)}</p>
+                <p className="text-gray-300 mb-3 whitespace-pre-wrap">{announcement.content}</p>
                 {announcement.images && announcement.images.length > 0 && (
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     {announcement.images.map((img, index) => (
