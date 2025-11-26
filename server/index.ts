@@ -247,20 +247,30 @@ async function scrapeExternalPost(url: string) {
         const dataAttr = obj.attr('data') || obj.attr('src')
         if (dataAttr) {
           const abs = new URL(dataAttr, url).href
-          // Use direct URL instead of proxy to avoid relative path issues and allow Office Viewer access
-          obj.attr('data', abs)
+          
+          if (/\.pdf($|\?)/i.test(abs)) {
+             const gDocsSrc = 'https://docs.google.com/gview?url=' + encodeURIComponent(abs) + '&embedded=true'
+             $el.prepend(`<iframe src="${gDocsSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+          } else {
+             // Fallback for other objects
+             const proxied = `/api/external/proxy?url=${encodeURIComponent(abs)}`
+             $el.prepend(`<iframe src="${proxied}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+          }
+          obj.remove()
         }
-        const style = (obj.attr('style') || '').toLowerCase()
-        if (!style.includes('height')) obj.attr('style', 'width:100%;height:600px')
       } else {
         const linkEl = $el.find('a[href]').first()
         const href = linkEl.attr('href') || ''
         if (href) {
           const fileAbs = new URL(href, url).href
-          if (/\.xlsx($|\?)/i.test(fileAbs) || /\.xls($|\?)/i.test(fileAbs) || /\.csv($|\?)/i.test(fileAbs)) {
+          if (/\.(xlsx|xls|csv|docx|doc|pptx|ppt)($|\?)/i.test(fileAbs)) {
             // Office Viewer requires a public absolute URL. Do not proxy.
             const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(fileAbs)
             $el.prepend(`<iframe src="${officeSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+          } else if (/\.pdf($|\?)/i.test(fileAbs)) {
+             // Embed PDF using Google Docs Viewer for better compatibility
+             const gDocsSrc = 'https://docs.google.com/gview?url=' + encodeURIComponent(fileAbs) + '&embedded=true'
+             $el.prepend(`<iframe src="${gDocsSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
           }
         }
       }
@@ -316,8 +326,27 @@ async function syncExternalOnce() {
         try {
           const existing = await prisma.announcement.findFirst({ where: { source: it.link } })
           
-          // Skip if we have full content and it doesn't use the old proxy links
-          if (existing && existing.fullContent && !existing.fullContent.includes('/api/external/proxy')) {
+          // Force update if content might be using wrong embed method
+          // 1. If it has direct object links (likely blocked PDFs), it needs proxy
+          // 2. If it has proxied Office Viewer links, it needs direct
+          // 3. If it has Office files (doc/ppt/xls) but no Office Viewer embed, it needs embed
+          // Check for office files more strictly to avoid matching .xlsx.pdf
+          const hasOfficeLink = /href="[^"]+\.(docx|doc|pptx|ppt|xlsx|xls|csv)($|["?])/i.test(existing?.fullContent || '')
+          const hasOfficeEmbed = (existing?.fullContent || '').includes('officeapps.live.com')
+
+          const needsUpdate = existing && existing.fullContent && (
+            existing.fullContent.includes('data="http') || 
+            existing.fullContent.includes('<object') ||
+            existing.fullContent.includes('officeapps.live.com/op/embed.aspx?src=%2Fapi') ||
+            existing.fullContent.includes('/api/external/proxy') ||
+            (hasOfficeLink && !hasOfficeEmbed)
+          )
+
+          if (needsUpdate) {
+            console.log(`[Sync] Force updating ${it.link} due to embed method mismatch`)
+          }
+
+          if (existing && existing.fullContent && !needsUpdate) {
             return
           }
           
