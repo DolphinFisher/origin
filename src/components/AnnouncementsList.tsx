@@ -20,10 +20,17 @@ export function AnnouncementsList({ announcements, onDelete, isAdmin }: Announce
     const tp = Math.max(1, Math.ceil(announcements.length / pageSize))
     if (page > tp) setPage(tp)
   }, [announcements])
-  const openExternalPost = async (url: string) => {
+  const openExternalPost = async (ann: Announcement) => {
+    if (!ann.source) return
     try {
+      // Show modal immediately with placeholder
+      setPostDetail({
+        title: ann.title,
+        dateText: formatDate(ann.date),
+        contentHtml: ''
+      })
       setPostLoading(true)
-      const data = await getExternalPost(url)
+      const data = await getExternalPost(ann.source)
       if (data) setPostDetail(data)
     } finally {
       setPostLoading(false)
@@ -95,18 +102,18 @@ export function AnnouncementsList({ announcements, onDelete, isAdmin }: Announce
                     src={announcement.images[0]}
                     alt={announcement.title}
                     className="w-full h-40 md:h-48 object-cover rounded-lg border border-gray-700 cursor-pointer"
-                    onClick={() => announcement.source && openExternalPost(announcement.source)}
+                    onClick={() => openExternalPost(announcement)}
                   />
                 )}
               </div>
               <div className="col-span-8">
                 <p className="text-gray-400 text-sm mb-1">{formatDate(announcement.date)}</p>
-                <a href={announcement.source} className="text-gray-100 font-semibold hover:underline" onClick={(e) => { e.preventDefault(); if (announcement.source) openExternalPost(announcement.source) }}>
+                <a href={announcement.source} className="text-gray-100 font-semibold hover:underline" onClick={(e) => { e.preventDefault(); openExternalPost(announcement) }}>
                   {announcement.title}
                 </a>
                 <p className="text-gray-300 mt-2 line-clamp-3">{announcement.content}</p>
                 <div className="mt-3">
-                  <a href={announcement.source} className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300" onClick={(e) => { e.preventDefault(); if (announcement.source) openExternalPost(announcement.source) }}>
+                  <a href={announcement.source} className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300" onClick={(e) => { e.preventDefault(); openExternalPost(announcement) }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h6m0 0v6m0-6L10 16M7 7h3m-3 0v3m0-3l7 7" /></svg>
                     Read more
                   </a>
