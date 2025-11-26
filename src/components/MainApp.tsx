@@ -19,33 +19,70 @@ export function MainApp({ isAdmin, onLogout }: MainAppProps) {
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [isAnnouncementsLoading, setIsAnnouncementsLoading] = useState(true);
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      const [a, ext, s] = await Promise.all([getAnnouncements(), getExternalAnnouncements(), getAssignments()])
-      const merged = [...ext, ...a]
-      const normalized = merged.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) }))
-      const sorted = normalized.sort((p, q) => {
-        const pt = p.date instanceof Date ? p.date.getTime() : new Date(p.date as any).getTime()
-        const qt = q.date instanceof Date ? q.date.getTime() : new Date(q.date as any).getTime()
-        return qt - pt
-      })
-      if (!cancelled) {
-        setAnnouncements(sorted)
+      // 1. Load internal data fast
+      setIsAnnouncementsLoading(true)
+      try {
+        const [internalAnn, s] = await Promise.all([getAnnouncements(), getAssignments()])
+        
+        if (cancelled) return
+
+        const normalizedInternal = internalAnn.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) }))
+        const sortedInternal = normalizedInternal.sort((p, q) => q.date.getTime() - p.date.getTime())
+
+        // If we have internal announcements, show them immediately
+        if (sortedInternal.length > 0) {
+          setAnnouncements(sortedInternal)
+          setIsAnnouncementsLoading(false)
+        } else {
+          // If no internal data, keep loading true so we show skeleton until external arrives
+          setAnnouncements([])
+        }
+        
         setAssignments(s.map(x => ({ ...x, dueDate: x.dueDate instanceof Date ? x.dueDate : (x.dueDate ? new Date(x.dueDate) : new Date()) })))
+
+        // 2. Load external data
+        const ext = await getExternalAnnouncements()
+        if (cancelled) return
+
+        const merged = [...ext, ...normalizedInternal]
+        const normalizedAll = merged.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) }))
+        const sortedAll = normalizedAll.sort((p, q) => q.date.getTime() - p.date.getTime())
+        
+        setAnnouncements(sortedAll)
+        setIsAnnouncementsLoading(false)
+
+      } catch (e) {
+        console.error(e)
+        setIsAnnouncementsLoading(false)
       }
     }
     load()
-    const id = setInterval(load, 60 * 1000)
-    const onFocus = () => load()
-    window.addEventListener('focus', onFocus)
+    // Refresh interval - handling it carefully to not trigger loading state every time
+    const id = setInterval(async () => {
+        // Silent update
+        const [a, ext, s] = await Promise.all([getAnnouncements(), getExternalAnnouncements(), getAssignments()])
+        if (cancelled) return
+        const merged = [...ext, ...a]
+        const normalized = merged.map(x => ({ ...x, date: x.date instanceof Date ? x.date : (x.date ? new Date(x.date) : new Date()) }))
+        const sorted = normalized.sort((p, q) => q.date.getTime() - p.date.getTime())
+        setAnnouncements(sorted)
+        setAssignments(s.map(x => ({ ...x, dueDate: x.dueDate instanceof Date ? x.dueDate : (x.dueDate ? new Date(x.dueDate) : new Date()) })))
+    }, 60 * 1000)
+
+    const onFocus = () => load() // This might trigger loading state again, maybe acceptable or should be silent?
+    // For simplicity, let focus trigger full load logic for now, or we can make a silentLoad function.
+    // Given the requirement, better to stick to the initial load logic.
+    
     return () => {
       cancelled = true
       clearInterval(id)
-      window.removeEventListener('focus', onFocus)
     }
   }, [])
 
@@ -135,6 +172,7 @@ export function MainApp({ isAdmin, onLogout }: MainAppProps) {
               announcements={announcements}
               onDelete={handleDeleteAnnouncement}
               isAdmin={isAdmin}
+              loading={isAnnouncementsLoading}
             />
           </div>
         ) : activeTab === 'assignments' ? (

@@ -7,9 +7,10 @@ interface AnnouncementsListProps {
   announcements: Announcement[];
   onDelete: (id: string) => void;
   isAdmin: boolean;
+  loading?: boolean;
 }
 
-export function AnnouncementsList({ announcements, onDelete, isAdmin }: AnnouncementsListProps) {
+export function AnnouncementsList({ announcements, onDelete, isAdmin, loading }: AnnouncementsListProps) {
   const [preview, setPreview] = useState<string | null>(null)
   const [postDetail, setPostDetail] = useState<{ title: string; dateText: string | null; contentHtml: string } | null>(null)
   const [postLoading, setPostLoading] = useState(false)
@@ -72,6 +73,21 @@ export function AnnouncementsList({ announcements, onDelete, isAdmin }: Announce
       return 'Tarih yok'
     }
   };
+
+  if (loading && announcements.length === 0) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-6 animate-pulse">
+            <div className="h-6 bg-gray-700 rounded w-3/4 mb-4"></div>
+            <div className="h-4 bg-gray-700 rounded w-full mb-2"></div>
+            <div className="h-4 bg-gray-700 rounded w-5/6 mb-2"></div>
+            <div className="h-4 bg-gray-700 rounded w-1/2"></div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   if (announcements.length === 0) {
     return (
