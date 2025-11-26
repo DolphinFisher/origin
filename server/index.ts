@@ -280,13 +280,40 @@ async function scrapeExternalPost(url: string) {
         if (href) {
           const fileAbs = new URL(href, url).href
           if (/\.(xlsx|xls|csv|docx|doc|pptx|ppt)($|\?)/i.test(fileAbs)) {
-            // Office Viewer requires a public absolute URL. Do not proxy.
-            const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(fileAbs)
-            $el.prepend(`<iframe src="${officeSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+            // Use Google Docs Viewer for Office files as it's often more reliable/faster than MS Office Viewer
+            // Also add a direct download button using our proxy for speed
+            const proxyUrl = `/api/external/proxy?url=${encodeURIComponent(fileAbs)}`
+            const gDocsSrc = 'https://docs.google.com/gview?url=' + encodeURIComponent(fileAbs) + '&embedded=true'
+            
+            const viewerHtml = `
+              <div class="office-container" style="margin: 1rem 0;">
+                <div style="margin-bottom: 0.5rem;">
+                  <a href="${proxyUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; background-color: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; text-decoration: none;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Dosyayı Hızlı Görüntüle / İndir
+                  </a>
+                </div>
+                <iframe src="${gDocsSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>
+              </div>
+            `
+            $el.prepend(viewerHtml)
           } else if (/\.pdf($|\?)/i.test(fileAbs)) {
-             // Embed PDF using Google Docs Viewer for better compatibility
-             const gDocsSrc = 'https://docs.google.com/gview?url=' + encodeURIComponent(fileAbs) + '&embedded=true'
-             $el.prepend(`<iframe src="${gDocsSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+             // Embed PDF using local proxy + object for better performance, just like the object handler
+             const proxyUrl = `/api/external/proxy?url=${encodeURIComponent(fileAbs)}`
+             const viewerHtml = `
+               <div class="pdf-container" style="margin: 1rem 0;">
+                 <div style="margin-bottom: 0.5rem;">
+                   <a href="${proxyUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; text-decoration: none;">
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                     PDF'i Hızlı Görüntüle / İndir
+                   </a>
+                 </div>
+                 <object data="${proxyUrl}" type="application/pdf" width="100%" height="600" style="border: none; background: #f3f4f6;">
+                   <iframe src="https://docs.google.com/gview?url=${encodeURIComponent(fileAbs)}&embedded=true" style="width:100%;height:600px;border:none" loading="lazy"></iframe>
+                 </object>
+               </div>
+             `
+             $el.prepend(viewerHtml)
           }
         }
       }
