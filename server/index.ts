@@ -249,8 +249,24 @@ async function scrapeExternalPost(url: string) {
           const abs = new URL(dataAttr, url).href
           
           if (/\.pdf($|\?)/i.test(abs)) {
-             const gDocsSrc = 'https://docs.google.com/gview?url=' + encodeURIComponent(abs) + '&embedded=true'
-             $el.prepend(`<iframe src="${gDocsSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+             // Use local proxy for faster loading on supported browsers
+             const proxyUrl = `/api/external/proxy?url=${encodeURIComponent(abs)}`
+             // Use <object> which is better for PDFs than iframe, and provide a clear download link
+             // We use a relative container to hold the object
+             const viewerHtml = `
+               <div class="pdf-container" style="margin: 1rem 0;">
+                 <div style="margin-bottom: 0.5rem;">
+                   <a href="${proxyUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; text-decoration: none;">
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                     PDF'i Hızlı Görüntüle / İndir
+                   </a>
+                 </div>
+                 <object data="${proxyUrl}" type="application/pdf" width="100%" height="600" style="border: none; background: #f3f4f6;">
+                   <iframe src="https://docs.google.com/gview?url=${encodeURIComponent(abs)}&embedded=true" style="width:100%;height:600px;border:none" loading="lazy"></iframe>
+                 </object>
+               </div>
+             `
+             $el.prepend(viewerHtml)
           } else {
              // Fallback for other objects
              const proxied = `/api/external/proxy?url=${encodeURIComponent(abs)}`
@@ -266,11 +282,35 @@ async function scrapeExternalPost(url: string) {
           if (/\.(xlsx|xls|csv|docx|doc|pptx|ppt)($|\?)/i.test(fileAbs)) {
             // Office Viewer requires a public absolute URL. Do not proxy.
             const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(fileAbs)
-            $el.prepend(`<iframe src="${officeSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+            const viewerHtml = `
+              <div class="office-container" style="margin: 1rem 0;">
+                <div style="margin-bottom: 0.5rem;">
+                   <a href="${fileAbs}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; background-color: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; text-decoration: none;">
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                     Dosyayı İndir
+                   </a>
+                 </div>
+                 <iframe src="${officeSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>
+              </div>
+            `
+            $el.prepend(viewerHtml)
           } else if (/\.pdf($|\?)/i.test(fileAbs)) {
-             // Embed PDF using Google Docs Viewer for better compatibility
-             const gDocsSrc = 'https://docs.google.com/gview?url=' + encodeURIComponent(fileAbs) + '&embedded=true'
-             $el.prepend(`<iframe src="${gDocsSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+             // Embed PDF using Native Object with Proxy (Fast) + Fallback
+             const proxyUrl = `/api/external/proxy?url=${encodeURIComponent(fileAbs)}`
+             const viewerHtml = `
+               <div class="pdf-container" style="margin: 1rem 0;">
+                 <div style="margin-bottom: 0.5rem;">
+                   <a href="${proxyUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; text-decoration: none;">
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                     PDF'i Hızlı Görüntüle / İndir
+                   </a>
+                 </div>
+                 <object data="${proxyUrl}" type="application/pdf" width="100%" height="600" style="border: none; background: #f3f4f6;">
+                   <iframe src="https://docs.google.com/gview?url=${encodeURIComponent(fileAbs)}&embedded=true" style="width:100%;height:600px;border:none" loading="lazy"></iframe>
+                 </object>
+               </div>
+             `
+             $el.prepend(viewerHtml)
           }
         }
       }
@@ -347,11 +387,10 @@ async function syncExternalOnce() {
           const hasOfficeEmbed = (existing?.fullContent || '').includes('officeapps.live.com')
 
           const needsUpdate = existing && existing.fullContent && (
-            existing.fullContent.includes('data="http') || 
-            existing.fullContent.includes('<object') ||
-            existing.fullContent.includes('officeapps.live.com/op/embed.aspx?src=%2Fapi') ||
-            existing.fullContent.includes('/api/external/proxy') ||
-            (hasOfficeLink && !hasOfficeEmbed)
+            // Update if it's using old Google Docs viewer for PDF without the container/download link
+            (existing.fullContent.includes('docs.google.com/gview') && !existing.fullContent.includes('class="pdf-container"')) ||
+            // Update if it's Office file without download link container
+            (hasOfficeEmbed && !existing.fullContent.includes('class="office-container"'))
           )
 
           if (needsUpdate) {
