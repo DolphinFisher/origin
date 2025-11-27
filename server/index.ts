@@ -346,16 +346,17 @@ async function syncExternalOnce() {
       const dateText = $(el).find('.post-date, time').first().text().trim() || $(el).find('time').attr('datetime') || null
       // Clean up excerpt: remove HTML tags and entities if any
       let excerptRaw = $(el).find('.post-content, .entry').first().text().trim() || ''
-      // If the text actually contains literal tags like <p>, strip them
-      // Also decode common entities that might appear as literals
+      
+      // Aggressive cleaning
       excerptRaw = excerptRaw
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&nbsp;/g, ' ')
         .replace(/&amp;/g, '&')
-        .replace(/<[^>]*>/g, '')
+        .replace(/<\/?[^>]+(>|$)/g, '') // Remove tags like <p>, </p>, <br/>
         .replace(/\s+/g, ' ')
         .trim()
+      
       const excerpt = excerptRaw
       if (title && link) items.push({ title, link, img, dateText, excerpt })
     })
@@ -393,7 +394,11 @@ async function syncExternalOnce() {
           }
 
           // Repair content (excerpt) if needed
-          if (existing && existing.content !== it.excerpt && it.excerpt) {
+          const currentContent = existing?.content || ''
+          const hasTags = /<[^>]+>/g.test(currentContent) || /&[a-z]+;/g.test(currentContent)
+          
+          if (existing && (currentContent !== it.excerpt || hasTags) && it.excerpt) {
+             console.log(`[Sync] Repairing content for ${it.link}`)
              await prisma.announcement.update({
                  where: { id: existing.id },
                  data: { content: it.excerpt }
