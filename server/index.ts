@@ -249,24 +249,28 @@ async function scrapeExternalPost(url: string) {
           const abs = new URL(dataAttr, url).href
           
           if (/\.pdf($|\?)/i.test(abs)) {
-             // Use local proxy for faster loading on supported browsers
              const proxyUrl = `/api/external/proxy?url=${encodeURIComponent(abs)}`
-             // Use <object> which is better for PDFs than iframe, and provide a clear download link
-             // We use a relative container to hold the object
-             const viewerHtml = `
-               <div class="pdf-container" style="margin: 1rem 0;">
-                 <object data="${proxyUrl}" type="application/pdf" width="100%" height="600" style="border: none; background: #f3f4f6;">
-                   <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #6b7280;">
-                     <p>PDF görüntülenemedi. <a href="${proxyUrl}" target="_blank" style="color: #2563eb; text-decoration: underline;">İndirmek için tıklayın.</a></p>
-                   </div>
-                 </object>
+             // Replace embed with prominent download button
+             const downloadHtml = `
+               <div class="pdf-download-container" style="margin: 1rem 0;">
+                 <a href="${proxyUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; background-color: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; text-decoration: none; transition: background-color 0.2s;">
+                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                   PDF Dosyasını İndir
+                 </a>
                </div>
              `
-             $el.prepend(viewerHtml)
+             $el.prepend(downloadHtml)
           } else {
-             // Fallback for other objects
              const proxied = `/api/external/proxy?url=${encodeURIComponent(abs)}`
-             $el.prepend(`<iframe src="${proxied}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>`)
+             const downloadHtml = `
+               <div class="file-download-container" style="margin: 1rem 0;">
+                 <a href="${proxied}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; background-color: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; text-decoration: none; transition: background-color 0.2s;">
+                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                   Dosyayı İndir
+                 </a>
+               </div>
+             `
+             $el.prepend(downloadHtml)
           }
           obj.remove()
         }
@@ -276,35 +280,28 @@ async function scrapeExternalPost(url: string) {
         if (href) {
           const fileAbs = new URL(href, url).href
           if (/\.(xlsx|xls|csv|docx|doc|pptx|ppt)($|\?)/i.test(fileAbs)) {
-            // Use Microsoft Office Viewer (more standard for Office files)
-            // Removed prominent button, added subtle fallback below
-            const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(fileAbs)
             const proxyUrl = `/api/external/proxy?url=${encodeURIComponent(fileAbs)}`
             
-            const viewerHtml = `
-              <div class="office-container" style="margin: 1rem 0;">
-                <iframe src="${officeSrc}" style="width:100%;height:600px;border:none" loading="lazy"></iframe>
-                <div style="text-align: right; margin-top: 0.25rem;">
-                  <a href="${proxyUrl}" target="_blank" style="color: #6b7280; font-size: 0.75rem; text-decoration: underline;">
-                    Dosyayı görüntüleyemiyor musunuz? İndirmek için tıklayın.
-                  </a>
-                </div>
+            const downloadHtml = `
+              <div class="office-download-container" style="margin: 1rem 0;">
+                <a href="${proxyUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; background-color: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; text-decoration: none; transition: background-color 0.2s;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Office Dosyasını İndir
+                </a>
               </div>
             `
-            $el.prepend(viewerHtml)
+            $el.prepend(downloadHtml)
           } else if (/\.pdf($|\?)/i.test(fileAbs)) {
-             // Embed PDF using local proxy + object
              const proxyUrl = `/api/external/proxy?url=${encodeURIComponent(fileAbs)}`
-             const viewerHtml = `
-               <div class="pdf-container" style="margin: 1rem 0;">
-                 <object data="${proxyUrl}" type="application/pdf" width="100%" height="600" style="border: none; background: #f3f4f6;">
-                   <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #6b7280;">
-                     <p>PDF görüntülenemedi. <a href="${proxyUrl}" target="_blank" style="color: #2563eb; text-decoration: underline;">İndirmek için tıklayın.</a></p>
-                   </div>
-                 </object>
+             const downloadHtml = `
+               <div class="pdf-download-container" style="margin: 1rem 0;">
+                 <a href="${proxyUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; background-color: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; text-decoration: none; transition: background-color 0.2s;">
+                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                   PDF Dosyasını İndir
+                 </a>
                </div>
              `
-             $el.prepend(viewerHtml)
+             $el.prepend(downloadHtml)
           }
         }
       }
@@ -317,6 +314,9 @@ async function scrapeExternalPost(url: string) {
         $(el).attr('src', abs)
       }
     })
+    
+    // Aggressively remove any remaining iframe/object/embed tags that might cause white boxes
+    contentEl.find('iframe, object, embed').remove()
     
     const contentHtml = contentEl.html() || ''
     return { title, dateText, contentHtml }
@@ -373,20 +373,18 @@ async function syncExternalOnce() {
         try {
           const existing = await prisma.announcement.findFirst({ where: { source: it.link } })
           
-          // Force update if content might be using wrong embed method
-          // 1. If it has direct object links (likely blocked PDFs), it needs proxy
-          // 2. If it has proxied Office Viewer links, it needs direct
-          // 3. If it has Office files (doc/ppt/xls) but no Office Viewer embed, it needs embed
-          // Check for office files more strictly to avoid matching .xlsx.pdf
-          const hasOfficeLink = /href="[^"]+\.(docx|doc|pptx|ppt|xlsx|xls|csv)($|["?])/i.test(existing?.fullContent || '')
-          const hasOfficeEmbed = (existing?.fullContent || '').includes('officeapps.live.com')
+          // Force update if content might be using old embed method
+          // We moved to download buttons, so we check for old embed tags or missing download containers
+          const hasNewDownload = existing?.fullContent && (
+            existing.fullContent.includes('pdf-download-container') ||
+            existing.fullContent.includes('office-download-container') ||
+            existing.fullContent.includes('file-download-container')
+          )
 
           const needsUpdate = existing && existing.fullContent && (
-            existing.fullContent.includes('data="http') || 
             existing.fullContent.includes('<object') ||
-            existing.fullContent.includes('officeapps.live.com/op/embed.aspx?src=%2Fapi') ||
-            existing.fullContent.includes('/api/external/proxy') ||
-            (hasOfficeLink && !hasOfficeEmbed)
+            existing.fullContent.includes('officeapps.live.com') ||
+            (existing.fullContent.includes('/api/external/proxy') && !hasNewDownload)
           )
 
           if (needsUpdate) {
