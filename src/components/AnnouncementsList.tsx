@@ -73,6 +73,18 @@ export function AnnouncementsList({ announcements, onDelete, isAdmin }: Announce
     }
   };
 
+  const stripHtml = (html: string) => {
+    if (!html) return ''
+    return html
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/<\/?[^>]+(>|$)/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  };
+
   if (announcements.length === 0) {
     return (
       <div className="bg-gray-800 rounded-lg shadow-sm p-12 text-center border border-gray-700">
@@ -111,7 +123,7 @@ export function AnnouncementsList({ announcements, onDelete, isAdmin }: Announce
                 <a href={announcement.source} className="text-gray-100 font-semibold hover:underline" onClick={(e) => { e.preventDefault(); openExternalPost(announcement) }}>
                   {announcement.title}
                 </a>
-                <p className="text-gray-300 mt-2 line-clamp-3">{announcement.content}</p>
+                <p className="text-gray-300 mt-2 line-clamp-3">{stripHtml(announcement.content)}</p>
                 <div className="mt-3">
                   <a href={announcement.source} className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300" onClick={(e) => { e.preventDefault(); openExternalPost(announcement) }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h6m0 0v6m0-6L10 16M7 7h3m-3 0v3m0-3l7 7" /></svg>
